@@ -1,0 +1,60 @@
+#############################################################################
+CADMAS-SURF/3D-MGの課題
+#############################################################################
+
+C@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+      CALL VF_P0BARR()
+      WRITE(*,*) 'MGRANK(',MGRANK,'),MGPROC,MGARAN,MGAREA=',
+     &           MGPROC,MGARAN,MGAREA(MGRANK+1)
+      WRITE(*,*) 'MGRANK(',MGRANK,'),MGCOMM,NPROCS,MYRANK=',
+     &           MGCOMM,NPROCS,MYRANK
+C      DO 10 I=1,MGPROC
+C        WRITE(*,*) 'MGRANK(',MGRANK,'),',MGNAME(I)(1:MGNLEN(I)),
+C     &             MGNPIN(I),MGPARE(I)
+C 10   CONTINUE
+      CALL VF_P0BARR()
+      CALL VF_A2CLOS()
+      CALL VF_P0END()
+      IF (MGRANK.EQ.0) WRITE(*,*) '#################### STOP BY AKIY'
+      STOP
+C@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+■でばっぐ／ラージK
+
+●下の２つの実行のしかたで結果が若干異なる？？？
+  ( time mpirun -np 2 -machinefile procs_list Src/a.3d-mg10-opt ) > log
+    time mpirun -np 2 -machinefile procs_list Src/a.3d-mg10-opt
+
+●この２つは同じ
+    time mpirun -np 2 -machinefile procs_list Src/a.3d-mg10-opt
+    mpirun -np 2 -machinefile procs_list Src/a.3d-mg10-opt
+
+#############################################################################
+CADMAS-SURF/3D-MGの開発履歴 : 履歴方向<↑>
+＜コモン、デフォルト、入力、エコー、機能、チェック＞
+#############################################################################
+
+  ★エリアの確保と座標値の交換
+  [C@]行の削除等(07/11)
+
+
+●Src1006XX    -----> XXXXXXXXXXXXXXXXXXXXXX -----> Debug-new
+  vf_cdtcalのVF_P1MINDをVF_P0MINDをした
+  vf_cdtcalのVF_P0MINDをVF_P1MINDにすれば２例題を独立に同時に解ける
+  どれかが終了したら全て終了
+
+●Src100609    -----> 計算をつなげる一歩手前
+  vf_cparaでNUMBUFの計算を変更、Debug-newで結果がちがうのがある(Jetとか)
+  セル数とセル位置の情報交換
+  全体の中の子の数とランクを知る
+  全体の中の親のランクを知る
+  障害物や境界インデックスの設定
+
+●Src100608    -----> コミュニケータを追加     -----> Debug-old(MPと若干違い有）
+  バージョン番号を<0.1>に設定
+  コード名をMGへ変更
+  data.envの入力
+  MPと同じ例題を流せるところまで
+
+●Src100523-MP -----> MP版:Cadmas3D-MGのベース -----> Debug-old-MP

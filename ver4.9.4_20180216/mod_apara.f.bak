@@ -1,0 +1,535 @@
+      MODULE MOD_APARA
+C----------------------------------------------------------------------
+C     領域分割による並列計算の機能拡張を行うためのモジュール
+C     親側M分割、子側N分割でのネスティング時の並列計算に対応
+C
+C     (なお、親側1分割、子側N分割でのネスティング時の
+C      並列計算に関する変数はVF_APARAI.h)
+C
+C     含まれるサブルーチン
+C
+C     MAKE_GGV_LIST: 
+C----------------------------------------------------------------------
+      IMPLICIT NONE
+C
+C ... 全PE共通
+      LOGICAL            :: LCHILD=.FALSE.! 子の有無(=.TRUE.:子領域あり、=.FALSE.:子領域なし)
+      INTEGER            :: IMY(6)       ! 自領域の範囲(ローカルインデックス,MYIS,MYIEと同等)
+C                                        ! 1:-X側, 2:-Y側, 3: -Z側
+C                                        ! 4:+X側, 5:+Y側, 6: +Z側
+      INTEGER            :: ICHILD(6)    ! 子領域の範囲(ローカルインデックス,MYIS,MYIEと比較可能)
+C                                        ! 1:-X側, 2:-Y側, 3: -Z側
+C                                        ! 4:+X側, 5:+Y側, 6: +Z側
+C                                        ! MGCNUM2は0番以外も0番と同じ値をもつ）
+      INTEGER            :: NCOUNTF      ! 送信するデータの数(セル中心定義)
+      INTEGER            :: NCOUNTU      ! 送信するデータの数(X方向セル境界定義)
+      INTEGER            :: NCOUNTV      ! 送信するデータの数(Y方向セル境界定義)
+      INTEGER            :: NCOUNTW      ! 送信するデータの数(Z方向セル境界定義)
+      INTEGER            :: NCOUNTFSUM   ! NCOUNTFのMGCOM内のプロセスの合計
+      INTEGER            :: NCOUNTUSUM   ! NCOUNTUのMGCOM内のプロセスの合計
+      INTEGER            :: NCOUNTVSUM   ! NCOUNTVのMGCOM内のプロセスの合計
+      INTEGER            :: NCOUNTWSUM   ! NCOUNTWのMGCOM内のプロセスの合計
+C
+      INTEGER,ALLOCATABLE:: IPOSF(:,:)   ! 送信するデータの位置(セル中心定義)
+      INTEGER,ALLOCATABLE:: IPOSU(:,:)   ! 送信するデータの位置(X方向セル境界定義)
+      INTEGER,ALLOCATABLE:: IPOSV(:,:)   ! 送信するデータの位置(Y方向セル境界定義)
+      INTEGER,ALLOCATABLE:: IPOSW(:,:)   ! 送信するデータの位置(Z方向セル境界定義)
+C                                        ! 第一要素は1:I, 2:J, 3:K,
+C                                        ! 第二要素はデータ番号
+      INTEGER,ALLOCATABLE:: JPOSF(:)     ! 送信するデータの全体領域における番号(セル中心定義)
+      INTEGER,ALLOCATABLE:: JPOSU(:)     ! 送信するデータの全体領域における番号(X方向セル境界定義)
+      INTEGER,ALLOCATABLE:: JPOSV(:)     ! 送信するデータの全体領域における番号(Y方向セル境界定義)
+      INTEGER,ALLOCATABLE:: JPOSW(:)     ! 送信するデータの全体領域における番号(Z方向セル境界定義)
+C
+C ... 0番PEのみ
+      INTEGER,ALLOCATABLE:: NCOUNTFALL(:)! MGCOM内のプロセスのNCOUNTFの集合
+      INTEGER,ALLOCATABLE:: NCOUNTUALL(:)! MGCOM内のプロセスのNCOUNTUの集合
+      INTEGER,ALLOCATABLE:: NCOUNTVALL(:)! MGCOM内のプロセスのNCOUNTVの集合
+      INTEGER,ALLOCATABLE:: NCOUNTWALL(:)! MGCOM内のプロセスのNCOUNTWの集合
+      INTEGER,ALLOCATABLE:: NDISPFALL(:) ! GATHER時の各PEからのデータの格納位置
+      INTEGER,ALLOCATABLE:: NDISPUALL(:) ! GATHER時の各PEからのデータの格納位置
+      INTEGER,ALLOCATABLE:: NDISPVALL(:) ! GATHER時の各PEからのデータの格納位置
+      INTEGER,ALLOCATABLE:: NDISPWALL(:) ! GATHER時の各PEからのデータの格納位置
+      INTEGER,ALLOCATABLE:: JPOSFALL(:)  ! MGCOM内のプロセスのJPOSFの集合
+      INTEGER,ALLOCATABLE:: JPOSUALL(:)  ! MGCOM内のプロセスのJPOSUの集合
+      INTEGER,ALLOCATABLE:: JPOSVALL(:)  ! MGCOM内のプロセスのJPOSVの集合
+      INTEGER,ALLOCATABLE:: JPOSWALL(:)  ! MGCOM内のプロセスのJPOSWの集合
+      DOUBLE PRECISION,ALLOCATABLE:: RBUFF(:,:)   ! 送信するデータ(セル中心定義)
+      DOUBLE PRECISION,ALLOCATABLE:: RBUFU(:,:)   ! 送信するデータ(X方向セル境界定義)
+      DOUBLE PRECISION,ALLOCATABLE:: RBUFV(:,:)   ! 送信するデータ(Y方向セル境界定義)
+      DOUBLE PRECISION,ALLOCATABLE:: RBUFW(:,:)   ! 送信するデータ(Z方向セル境界定義)
+C                                        ! 第一要素は1:I, 2:J, 3:K, 4:全体の中の順番
+C                                        ! 第二要素はデータ番号
+C
+C
+      CONTAINS
+C
+C
+      SUBROUTINE SET_REGION(ISC,JSC,KSC,IEC,JEC,KEC,
+     $                      ISG,JSG,KSG,IEG,JEG,KEG,MYRANK)
+C----------------------------------------
+C     変数LCHILD,IMY,ICHILDを設定する
+C----------------------------------------
+      INTEGER,INTENT(IN):: ISC,IEC,JSC,JEC,KSC,KEC
+      INTEGER,INTENT(IN):: ISG,IEG,JSG,JEG,KSG,KEG
+      INTEGER,INTENT(IN):: MYRANK
+C
+C
+      LCHILD=.TRUE.
+      IMY(1)=ISG
+      IMY(2)=JSG
+      IMY(3)=KSG
+      IMY(4)=IEG
+      IMY(5)=JEG
+      IMY(6)=KEG
+      ICHILD(1)=ISC
+      ICHILD(2)=JSC
+      ICHILD(3)=KSC
+      ICHILD(4)=IEC
+      ICHILD(5)=JEC
+      ICHILD(6)=KEC
+CDEBUG      ICHILD(1)=MAX(ISC,ISG)
+CDEBUG      ICHILD(2)=MAX(JSC,JSG)
+CDEBUG      ICHILD(3)=MAX(KSC,KSG)
+CDEBUG      ICHILD(4)=MIN(IEC,IEG)
+CDEBUG      ICHILD(5)=MIN(JEC,JEG)
+CDEBUG      ICHILD(6)=MIN(KEC,KEG)
+C
+      write(100+myrank,*) 'imy=',imy
+      write(100+myrank,*) 'ichild=',ichild
+C
+      RETURN
+      END
+C
+C
+      SUBROUTINE MAKE_GGV_LIST(MYRANK,NPROCS)
+C----------------------------------------
+C     親から子への地形データの通信に用いるリストを作成する
+C----------------------------------------
+      INTEGER,INTENT(IN):: MYRANK,NPROCS
+C
+      INTEGER:: I,J,K,N,NN,IERR
+      INTEGER:: IS,IE,JS,JE,KS,KE
+      INTEGER:: ISG,IEG,JSG,JEG
+      INTEGER:: NCOUNTF2,NCOUNTU2,NCOUNTV2,NCOUNTW2
+C
+C
+      IS=ICHILD(1)
+      JS=ICHILD(2)
+      KS=ICHILD(3)
+      IE=ICHILD(4)
+      JE=ICHILD(5)
+      KE=ICHILD(6)
+      ISG=IMY(1)
+      JSG=IMY(2)
+      IEG=IMY(4)
+      JEG=IMY(5)
+C
+      NCOUNTF = 0
+      DO K=KS,KE
+      DO J=JS,JE
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTF = NCOUNTF + 2
+            ENDIF
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+
+      NCOUNTU = 0
+      DO K=KS,KE
+      DO J=JS,JE
+      DO I=IS,IE+1
+         IF(I.LE.IS+1 .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTU = NCOUNTU + 1
+            ENDIF
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+
+      NCOUNTV = 0
+      DO K=KS,KE
+      DO J=JS,JE+1
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS+1 .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTV = NCOUNTV + 1
+            ENDIF
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+
+      NCOUNTW = 0
+      DO K=KS,KE+1
+      DO J=JS,JE
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTW = NCOUNTW + 1
+            ENDIF
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+C
+      ALLOCATE(IPOSF(3,NCOUNTF),IPOSU(3,NCOUNTU),
+     $         IPOSV(3,NCOUNTV),IPOSW(3,NCOUNTW),
+     $         JPOSF(NCOUNTF),JPOSU(NCOUNTU),
+     $         JPOSV(NCOUNTV),JPOSW(NCOUNTW),STAT=IERR)
+C
+      NCOUNTF2 = 0
+      NN = 0
+      DO K=KS,KE
+      DO J=JS,JE
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTF2 = NCOUNTF2 + 1
+               IPOSF(1,NCOUNTF2)=I
+               IPOSF(2,NCOUNTF2)=J
+               IPOSF(3,NCOUNTF2)=K
+               JPOSF(NCOUNTF2)=NN+1
+C
+               NCOUNTF2 = NCOUNTF2 + 1
+               IPOSF(1,NCOUNTF2)=I
+               IPOSF(2,NCOUNTF2)=J
+               IPOSF(3,NCOUNTF2)=K
+               JPOSF(NCOUNTF2)=NN+2
+            ENDIF
+            NN=NN+2
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+      write(100+myrank,*) '1:nn=',nn
+
+      NCOUNTU2 = 0
+      NN = 0
+      DO K=KS,KE
+      DO J=JS,JE
+      DO I=IS,IE+1
+         IF(I.LE.IS+1 .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTU2 = NCOUNTU2 + 1
+               IPOSU(1,NCOUNTU2)=I
+               IPOSU(2,NCOUNTU2)=J
+               IPOSU(3,NCOUNTU2)=K
+               JPOSU(NCOUNTU2)=NN+1
+            ENDIF
+            NN=NN+1
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+      write(100+myrank,*) '2:nn=',nn
+
+      NCOUNTV2 = 0
+      NN = 0
+      DO K=KS,KE
+      DO J=JS,JE+1
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS+1 .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTV2 = NCOUNTV2 + 1
+               IPOSV(1,NCOUNTV2)=I
+               IPOSV(2,NCOUNTV2)=J
+               IPOSV(3,NCOUNTV2)=K
+               JPOSV(NCOUNTV2)=NN+1
+            ENDIF
+            NN=NN+1
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+      write(100+myrank,*) '3:nn=',nn
+
+      NCOUNTW2 = 0
+      NN = 0
+      DO K=KS,KE+1
+      DO J=JS,JE
+      DO I=IS,IE
+         IF(I.LE.IS .OR. I.GE.IE .OR. J.LE.JS .OR. J.GE.JE) THEN
+            IF( ISG.LE.I.AND.I.LE.IEG .AND.
+     $          JSG.LE.J.AND.J.LE.JEG ) THEN
+               NCOUNTW2 = NCOUNTW2 + 1
+               IPOSW(1,NCOUNTW2)=I
+               IPOSW(2,NCOUNTW2)=J
+               IPOSW(3,NCOUNTW2)=K
+               JPOSW(NCOUNTW2)=NN+1
+            ENDIF
+            NN=NN+1
+         ENDIF
+      ENDDO
+      ENDDO
+      ENDDO
+      write(100+myrank,*) '4:nn=',nn
+C
+      IF( NCOUNTF /= NCOUNTF2 .OR.
+     $    NCOUNTU /= NCOUNTU2 .OR.
+     $    NCOUNTV /= NCOUNTV2 .OR.
+     $    NCOUNTW /= NCOUNTW2 ) THEN
+         WRITE(*,*) 'ERROR AT MAKE_GGV_LSIT'
+         WRITE(*,*) '  NCOUNTF=',NCOUNTF,NCOUNTF2
+         WRITE(*,*) '  NCOUNTU=',NCOUNTU,NCOUNTU2
+         WRITE(*,*) '  NCOUNTV=',NCOUNTV,NCOUNTV2
+         WRITE(*,*) '  NCOUNTW=',NCOUNTW,NCOUNTW2
+         CALL VF_ZXMG_ABORT(IERR)
+      ENDIF
+C
+      CALL VF_ZXMP_ALLSMI(NCOUNTF,NCOUNTFSUM,IERR)
+      CALL VF_ZXMP_ALLSMI(NCOUNTU,NCOUNTUSUM,IERR)
+      CALL VF_ZXMP_ALLSMI(NCOUNTV,NCOUNTVSUM,IERR)
+      CALL VF_ZXMP_ALLSMI(NCOUNTW,NCOUNTWSUM,IERR)
+C
+      write(100+myrank,*) 'ncountf,ncountfsum= ',ncountf,ncountfsum
+      write(100+myrank,*) 'ncountu,ncountusum= ',ncountu,ncountusum
+      write(100+myrank,*) 'ncountv,ncountvsum= ',ncountv,ncountvsum
+      write(100+myrank,*) 'ncountw,ncountwsum= ',ncountw,ncountwsum
+C
+      ALLOCATE(NCOUNTFALL(NPROCS),NDISPFALL(NPROCS),
+     $         NCOUNTUALL(NPROCS),NDISPUALL(NPROCS),
+     $         NCOUNTVALL(NPROCS),NDISPVALL(NPROCS),
+     $         NCOUNTWALL(NPROCS),NDISPWALL(NPROCS),
+     $         STAT=IERR)
+C
+      NCOUNTFALL(:)=0
+      NCOUNTUALL(:)=0
+      NCOUNTVALL(:)=0
+      NCOUNTWALL(:)=0
+      NDISPFALL(:)=0
+      NDISPUALL(:)=0
+      NDISPVALL(:)=0
+      NDISPWALL(:)=0
+C
+      CALL VF_ZXMP_GATHERI(NCOUNTF,1,NCOUNTFALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERI(NCOUNTU,1,NCOUNTUALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERI(NCOUNTV,1,NCOUNTVALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERI(NCOUNTW,1,NCOUNTWALL,NPROCS,IERR)
+C
+      IF(MYRANK==0) THEN
+         write(100+myrank,*) 'ncountfall=',ncountfall
+         write(100+myrank,*) 'ncountuall=',ncountuall
+         write(100+myrank,*) 'ncountvall=',ncountvall
+         write(100+myrank,*) 'ncountwall=',ncountwall
+c
+         ALLOCATE(JPOSFALL(NCOUNTFSUM),
+     $            JPOSUALL(NCOUNTUSUM),
+     $            JPOSVALL(NCOUNTVSUM),
+     $            JPOSWALL(NCOUNTWSUM),STAT=IERR)
+         write(100+myrank,*) '8:ierr=',ierr
+C
+         NDISPFALL(1)=0
+         NDISPUALL(1)=0
+         NDISPVALL(1)=0
+         NDISPWALL(1)=0
+         DO N=2,NPROCS
+            NDISPFALL(N)=NDISPFALL(N-1)+NCOUNTFALL(N-1)
+            NDISPUALL(N)=NDISPUALL(N-1)+NCOUNTUALL(N-1)
+            NDISPVALL(N)=NDISPVALL(N-1)+NCOUNTVALL(N-1)
+            NDISPWALL(N)=NDISPWALL(N-1)+NCOUNTWALL(N-1)
+         ENDDO
+C
+         write(100+myrank,*) 'ndispfall=',ndispfall
+         write(100+myrank,*) 'ndispuall=',ndispuall
+         write(100+myrank,*) 'ndispvall=',ndispvall
+         write(100+myrank,*) 'ndispwall=',ndispwall
+      ELSE
+         ALLOCATE(JPOSFALL(1),JPOSUALL(1),
+     $            JPOSVALL(1),JPOSWALL(1),STAT=IERR)
+      ENDIF
+C
+      JPOSFALL(:)=0
+      JPOSUALL(:)=0
+      JPOSVALL(:)=0
+      JPOSWALL(:)=0
+C
+      CALL VF_ZXMP_GATHERVI(JPOSF,NCOUNTF,JPOSFALL,NCOUNTFSUM,
+     $                      NCOUNTFALL,NDISPFALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERVI(JPOSU,NCOUNTU,JPOSUALL,NCOUNTUSUM,
+     $                      NCOUNTUALL,NDISPUALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERVI(JPOSV,NCOUNTV,JPOSVALL,NCOUNTVSUM,
+     $                      NCOUNTVALL,NDISPVALL,NPROCS,IERR)
+      CALL VF_ZXMP_GATHERVI(JPOSW,NCOUNTW,JPOSWALL,NCOUNTWSUM,
+     $                      NCOUNTWALL,NDISPWALL,NPROCS,IERR)
+C
+CDEBUG      write(100+myrank,*) 'jposf=',jposf
+CDEBUG      write(100+myrank,*) 'jposu=',jposu
+CDEBUG      write(100+myrank,*) 'jposv=',jposv
+CDEBUG      write(100+myrank,*) 'jposw=',jposw
+CDEBUG      write(100+myrank,*) 'jposfall=',jposfall
+CDEBUG      write(100+myrank,*) 'jposuall=',jposuall
+CDEBUG      write(100+myrank,*) 'jposvall=',jposvall
+CDEBUG      write(100+myrank,*) 'jposwall=',jposwall
+CDEBUG      call vf_zxmp_barri(ierr)
+c
+      RETURN
+      END
+C
+C
+      SUBROUTINE DELETE_GGV_LIST(MYRANK,NPROCS)
+C----------------------------------------
+C     親から子への地形データの通信に用いるリストを削除する
+C----------------------------------------
+      INTEGER,INTENT(IN):: MYRANK,NPROCS
+C
+      INTEGER:: IERR
+C
+C
+      NCOUNTF=0
+      NCOUNTU=0
+      NCOUNTV=0
+      NCOUNTW=0
+      NCOUNTFSUM=0
+      NCOUNTUSUM=0
+      NCOUNTVSUM=0
+      NCOUNTWSUM=0
+      DEALLOCATE(IPOSF,IPOSU,
+     $           IPOSV,IPOSW,
+     $           JPOSF,JPOSU,
+     $           JPOSV,JPOSW,STAT=IERR)
+      DEALLOCATE(NCOUNTFALL,NDISPFALL,
+     $           NCOUNTUALL,NDISPUALL,
+     $           NCOUNTVALL,NDISPVALL,
+     $           NCOUNTWALL,NDISPWALL,
+     $           STAT=IERR)
+      DEALLOCATE(JPOSFALL,JPOSUALL,
+     $           JPOSVALL,JPOSWALL,STAT=IERR)
+C
+      RETURN
+      END
+C
+C
+      SUBROUTINE SET_GGV_F(GWRK,NGWRK,GGV,NF,NUMI,NUMJ,NUMK,
+     $                     MYRANK,NPROCS)
+C----------------------------------------
+C     親から子への送信するための送信バッファに地形データを集める1
+C----------------------------------------
+      DOUBLE PRECISION,INTENT(OUT):: GWRK(NGWRK)
+      DOUBLE PRECISION,INTENT(IN) :: GGV(NUMI,NUMJ,NUMK)
+      INTEGER,INTENT(IN)          :: NF(NUMI,NUMJ,NUMK)
+      INTEGER,INTENT(IN)          :: NGWRK
+      INTEGER,INTENT(IN)          :: NUMI,NUMJ,NUMK
+      INTEGER,INTENT(IN)          :: MYRANK,NPROCS
+C
+      DOUBLE PRECISION,ALLOCATABLE :: GWRK2(:)
+      DOUBLE PRECISION,ALLOCATABLE :: GWRKLOCAL(:)
+      INTEGER:: I,J,K,M,N,IERR
+C
+C
+      if(myrank==0.and.ngwrk.ne.ncountfsum) then
+         write(*,*) 'Error: ngwrk is not eqaul to ncountfsum'
+         write(*,*) '     : ngwrk      =',ngwrk
+         write(*,*) '     : ncountfsum =',ncountfsum
+         call vf_zxmg_abort(ierr)
+      endif
+C
+      ALLOCATE(GWRK2(NGWRK),GWRKLOCAL(NCOUNTF),STAT=IERR)
+C
+      DO N=1,NCOUNTF
+         I=IPOSF(1,N)
+         J=IPOSF(2,N)
+         K=IPOSF(3,N)
+         IF(MOD(N,2).EQ.1) GWRKLOCAL(N)=GGV(I,J,K)
+         IF(MOD(N,2).EQ.0) GWRKLOCAL(N)=DBLE(NF(I,J,K))
+      ENDDO
+C
+      write(100+myrank,*) 'ncountf,ncountfsum=',ncountf,ncountfsum
+      GWRK2(:)=HUGE(1)
+      CALL VF_ZXMP_GATHERVD(GWRKLOCAL,NCOUNTF,GWRK2,NCOUNTFSUM,
+     $                      NCOUNTFALL,NDISPFALL,NPROCS,IERR)
+      write(100+myrank,*) 'gather f end'
+C
+      IF( MYRANK==0 ) THEN
+         GWRK(:)=HUGE(1)
+         DO N=1,NCOUNTFSUM
+            M=JPOSFALL(N)
+            GWRK(M)=GWRK2(N)
+         ENDDO
+      ENDIF
+C
+      DEALLOCATE(GWRK2,GWRKLOCAL)
+C
+      RETURN
+      END
+C
+C
+      SUBROUTINE SET_GGV_UVW(GWRK,NGWRK,GGXYZ,NUMI,NUMJ,NUMK,
+     $                       IFLAG,MYRANK,NPROCS)
+C----------------------------------------
+C     親から子への送信するための送信バッファに地形データを集める1
+C----------------------------------------
+      DOUBLE PRECISION,INTENT(OUT):: GWRK(NGWRK)
+      DOUBLE PRECISION,INTENT(IN) :: GGXYZ(NUMI,NUMJ,NUMK)
+      INTEGER,INTENT(IN)          :: NGWRK
+      INTEGER,INTENT(IN)          :: NUMI,NUMJ,NUMK
+      INTEGER,INTENT(IN)          :: IFLAG,MYRANK,NPROCS
+C
+      DOUBLE PRECISION,ALLOCATABLE :: GWRK2(:)
+      DOUBLE PRECISION,ALLOCATABLE :: GWRKLOCAL(:)
+      INTEGER:: nc,ncsum
+      INTEGER:: I,J,K,M,N,IERR
+C
+C
+      IF(IFLAG==1) NC=NCOUNTU
+      IF(IFLAG==2) NC=NCOUNTV
+      IF(IFLAG==3) NC=NCOUNTW
+C
+      IF(IFLAG==1) NCSUM=NCOUNTUSUM
+      IF(IFLAG==2) NCSUM=NCOUNTVSUM
+      IF(IFLAG==3) NCSUM=NCOUNTWSUM
+C
+      if(myrank==0.and.ngwrk.ne.ncsum) then
+         write(*,*) 'Error: ngwrk is not eqaul to nc'
+         write(*,*) '     : iflag=',iflag
+         call vf_zxmg_abort(ierr)
+      endif
+C
+      ALLOCATE(GWRK2(NGWRK),GWRKLOCAL(NC),STAT=IERR)
+C
+      DO N=1,NC
+         I=IPOSF(1,N)
+         J=IPOSF(2,N)
+         K=IPOSF(3,N)
+         GWRKLOCAL(N)=GGXYZ(I,J,K)
+      ENDDO
+C
+      write(100+myrank,*) 'nc,ncsum=',nc,ncsum
+      GWRK2(:)=HUGE(1)
+      IF(IFLAG==1) CALL VF_ZXMP_GATHERVD(GWRKLOCAL,NC,GWRK2,NCSUM,
+     $                           NCOUNTUALL,NDISPUALL,NPROCS,IERR)
+      IF(IFLAG==2) CALL VF_ZXMP_GATHERVD(GWRKLOCAL,NC,GWRK2,NCSUM,
+     $                           NCOUNTVALL,NDISPVALL,NPROCS,IERR)
+      IF(IFLAG==3) CALL VF_ZXMP_GATHERVD(GWRKLOCAL,NC,GWRK2,NCSUM,
+     $                           NCOUNTWALL,NDISPWALL,NPROCS,IERR)
+      write(100+myrank,*) 'gather uvw end, iflag=',iflag
+      call vf_zxmp_barri(ierr)
+C
+      IF( MYRANK==0 ) THEN
+         GWRK(:)=HUGE(1)
+         DO N=1,NCSUM
+            IF(IFLAG==1) M=JPOSUALL(N)
+            IF(IFLAG==2) M=JPOSVALL(N)
+            IF(IFLAG==3) M=JPOSWALL(N)
+            GWRK(M)=GWRK2(N)
+         ENDDO
+      ENDIF
+C
+      DEALLOCATE(GWRK2,GWRKLOCAL)
+C
+      RETURN
+      END
+C
+C
+      END MODULE MOD_APARA
