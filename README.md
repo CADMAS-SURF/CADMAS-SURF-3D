@@ -4,7 +4,7 @@
 
 If you publish results using our code, please acknowledge our work by quoting the following paper:
 
-Taro ARIKAWA, Kazuhiro HAMAGUCHI, Kazushi KITAGAWA, Tomonori SUZUKI, Development of Numerical Wave Tank Coupled with Structure Analysis Based on FEM, Journal of Japan Society of Civil Engineers, Ser. B2 (Coastal Engineering), 2009, Volume 65, Issue 1, Pages 866-870
+Taro ARIKAWA, Huminori YAMADA, Minoru AKIYAMA, Investigation of Applicability for Tsunami Wave Forces in a 3-D Numerical Wave Tank, PROCEEDINGS OF COASTAL ENGINEERING, JSCE, 2005, Volume 52, Pages 46-50
 
 # Related Documents
 
@@ -13,6 +13,10 @@ Please refer to the list of [related documents](/RelatedDocuments.md).
 ## Versions:  
  2022/04/09(First commit)："ver4.9.4_20180216"
 
+## Documentation:
+ 1.  [Proguram manual](/Manuals/CADMAS-surf3D_Manual.pdf).
+ 2.  Input data creation support software [CADMAS-MESH](/Manuals/CADMAS-MESH_Manual.pdf).
+ 3.  Visualization software　[CADMAS-MESH](/Manuals/Manuals/View3DKai%20Manual.pdf).
 
 ## How to Compile:
  1. Type `unzip CADMAS-MG-master.zip -d CADMAS-MG-master`
