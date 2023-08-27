@@ -4,6 +4,8 @@ Numerical Wave Tank CADMAS-SURF/3D is a 3D free surface flow simulator based on 
 
 [Click here](https://github.com/CADMAS-SURF/CADMAS-STR/tree/master/Src/cadmas_ver5.3.3) for gas-liquid 2-phase model
 
+It can also be connected to the tsunami storm surge simulator ([STOC](https://www.pari.go.jp/unit/tsunamitakashio/open-software/t-stoc/download/index.html) developed by [Port and Airport Research institute](https://www.pari.go.jp/)
+
 ## Citation
 
 If you publish results using our code, please acknowledge our work by quoting the following paper:
