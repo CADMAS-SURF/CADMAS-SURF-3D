@@ -15,9 +15,9 @@ Please refer to the list of [related documents](/RelatedDocuments.md).
 
 ## Documentation:
  1.  [Proguram manual](/Manuals/CADMAS-surf3D_Manual.pdf).
- 2.  Input data creation support software [CADMAS-MESH](/Manuals/CADMAS-MESH_Manual.pdf).
- 3.  Visualization software　[ViewKAI3D](/Manuals/Manuals/View3DKaiManual.pdf).
- 4.  Visualization software [CADMAS-VR](https://github.com/CADMAS-SURF/CADMAS-VR).
+ 2.  Input data creation support software [CADMAS-MESH](https://github.com/CADMAS-SURF/CADMAS-MESH).
+ 3.  Visualization software　[ViewKAI3D](https://github.com/CADMAS-SURF/Viewkai).
+ 4.  Visualization software (recommendation) [CADMAS-VR](https://github.com/CADMAS-SURF/CADMAS-VR).
 
 ## How to Compile:
  1. Type `unzip CADMAS-MG-master.zip -d CADMAS-MG-master`
