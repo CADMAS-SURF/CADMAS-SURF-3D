@@ -18,7 +18,7 @@ Please refer to the list of [related documents](/RelatedDocuments.md).
 
 ## Calculation Results
 
-Please refer to some [example calculations](/(https://github.com/CADMAS-SURF/CADMAS-SURF-3D/blob/master/CalculationResults.pdf)).
+Please refer to some [example calculations](/https://github.com/CADMAS-SURF/CADMAS-SURF-3D/blob/master/CalculationResults.pdf).
 
 ## Versions
  2022/04/09(First commit)："ver4.9.4_20180216"
