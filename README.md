@@ -16,6 +16,10 @@ Taro ARIKAWA, Huminori YAMADA, Minoru AKIYAMA, Investigation of Applicability fo
 
 Please refer to the list of [related documents](/RelatedDocuments.md).
 
+## Calculation Results
+
+Please refer to some [example calculations](/Calculation Results.pdf).
+
 ## Versions
  2022/04/09(First commit)："ver4.9.4_20180216"
 
